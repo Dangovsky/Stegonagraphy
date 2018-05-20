@@ -3,7 +3,6 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
-#include "opencv/cv.h"
 #include <iostream>
 #include <vector>
 #include "steganography.h"
@@ -14,7 +13,7 @@ using namespace std;
 void FirstTest()
 {
     Steganography stg;
-    Mat pure_image = imread("test.jpg");
+    Mat pure_image = imread("test.jpg", cv::IMREAD_COLOR);
     //namedWindow( "Pure image", WINDOW_AUTOSIZE );
     //imshow( "Pure image", pure_image );
 
@@ -30,7 +29,7 @@ void FirstTest()
     imshow( "double_image", image);
 
 
-    Mat haar = stg.DiscreteHaarWaveletTransform(image);
+    Mat haar = stg.dwtHaar(image);
     namedWindow( "Haar", WINDOW_AUTOSIZE );
     imshow( "Haar", haar);
 
@@ -88,7 +87,7 @@ void FirstTest()
     namedWindow( "uchar_haar", WINDOW_AUTOSIZE );
     imshow( "uchar_haar", double_haar);
 
-    Mat ihaar = stg.DiscreteHaarWaveletInverseTransform(haar);
+    Mat ihaar = stg.idwtHaar(haar);
     namedWindow( "haar1", WINDOW_AUTOSIZE );
     imshow( "haar1", ihaar);
 
@@ -125,7 +124,7 @@ void SecTest()
     namedWindow( "blue", WINDOW_AUTOSIZE );
     imshow( "blue", blue);
 
-    Mat haar = stg.DiscreteHaarWaveletTransform(blue);
+    Mat haar = stg.dwtHaar(blue); // stg.DiscreteHaarWaveletTransform(blue);
     namedWindow( "haar", WINDOW_AUTOSIZE );
     imshow( "haar", haar);
 
@@ -133,7 +132,7 @@ void SecTest()
     namedWindow( "crop", WINDOW_AUTOSIZE );
     imshow( "crop", crop);
 
-    Mat inverse = stg.DiscreteHaarWaveletInverseTransform(haar);
+    Mat inverse = stg.idwtHaar(haar);  // stg.DiscreteHaarWaveletInverseTransform(haar);
     namedWindow( "inverse", WINDOW_AUTOSIZE );
     imshow( "inverse", inverse);
 
@@ -142,22 +141,36 @@ void SecTest()
 
 void StegTest()
 {
-    vector<char>* data = new vector<char>{'d', 'a', 't', 'a'};
-    vector<int>* indexes = new vector<int>(data->capacity() * 8);
-    for (int i = 0; i < indexes->capacity(); i++)
+    vector<char> data = vector<char>{'h', 'e', 'l', 'l', 'o'};
+    vector<int> indexes = vector<int>(data.capacity() * 8);
+    for (int i = 2; i < indexes.capacity(); i++)
     {
-        indexes->at(i) = i * 3;
+        indexes.at(i) = i * 2;
     }
     Steganography stg;
 
-    Mat pure_image = imread("test.tif");
-    Mat full_image = stg.Hide(pure_image, *data, *indexes);
-    vector<char> out_data = stg.Find(full_image, *indexes);
+    Mat pure_image = imread("test.tif"),
+        full_image = stg.Hide(pure_image, data, indexes);
+
+    vector<char> out_data = stg.Find(full_image, indexes);
 
     namedWindow( "pure_image", WINDOW_AUTOSIZE );
     imshow( "pure_image", pure_image);
 
+    namedWindow( "full_image", WINDOW_AUTOSIZE );
+    imshow( "full_image", full_image);
+
     waitKey(0);
+}
+
+void ThTest(){
+    Steganography stg;
+    Mat pure_image = imread("test.tif"),
+        full_image;
+    stg.Hide(pure_image,vector<char>(0),vector<int>(0)).convertTo(full_image, CV_8UC3, 255.0);
+
+    namedWindow( "pure_image", WINDOW_AUTOSIZE );
+    imshow( "pure_image", pure_image);
 
     namedWindow( "full_image", WINDOW_AUTOSIZE );
     imshow( "full_image", full_image);
@@ -166,8 +179,8 @@ void StegTest()
 }
 
 int main(int argc, char *argv[])
-{
-    SecTest();
+{    
+    StegTest();
     return 0;
 }
 

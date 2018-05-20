@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv/cv.h"
@@ -40,170 +41,226 @@ vector<int> Steganography::PseudoRandom(int a, int b, int c, int max, int size)
     return PseudoRandom(max, size);
 }
 
-Mat Steganography::DiscreteHaarWaveletTransform(Mat image)
+Mat Steganography::dwtHaar(const Mat &imgSrc)
 {
-    int i, j;
-    Mat* output = new Mat(image.rows, image.cols, image.type());
-    for (i = 0; i < image.rows; i++){
-        for (j = 0; j < image.cols / 2; j++){
-             output->at<float>(i,j) = (image.at<float>(i,2 * j)  + image.at<float>(i,2 * j + 1)) / (float)sqrt(2);
-             output->at<float>(i,j + output->cols / 2) = abs(image.at<float>(i,2 * j) - image.at<float>(i,2 * j + 1)) / (float)sqrt(2);
+    int w = imgSrc.cols,
+        h = imgSrc.rows;
+
+    Mat imgLL   = Mat::zeros(h/2, w/2, CV_32F),
+        imgHL   = Mat::zeros(h/2, w/2, CV_32F),
+        imgLH   = Mat::zeros(h/2, w/2, CV_32F),
+        imgHH   = Mat::zeros(h/2, w/2, CV_32F),
+        imgTmp1 = Mat::zeros(h/2, w,   CV_32F),
+        imgTmp2 = Mat::zeros(h/2, w,   CV_32F);
+
+    for(int y=0; y < h; y+=2)
+    {
+        for(int x=0; x < w; x++)
+        {
+            imgTmp1.at<float>(y/2,x) = (imgSrc.at<float>(y,x) + imgSrc.at<float>(y+1,x))*ISQ2;
+            imgTmp2.at<float>(y/2,x) = (imgSrc.at<float>(y,x) - imgSrc.at<float>(y+1,x))*ISQ2;
         }
     }
 
-    output->copyTo(image);
-
-    for (i = 0; i < image.rows / 2; i++){
-        for (j = 0; j < image.cols; j++){
-             output->at<float>(i,j) = (image.at<float>(2 * i,j) + image.at<float>(2 * i + 1,j)) / (float)sqrt(2);
-             output->at<float>(i + output->rows / 2,j) = abs(image.at<float>(2 * i,j) - image.at<float>(2 * i + 1,j)) / (float)sqrt(2);
+    for(int y=0; y < h/2; y++)
+    {
+        for(int x=0; x < w; x+=2)
+        {
+            imgLL.at<float>(y,x/2) = (imgTmp1.at<float>(y,x) + imgTmp1.at<float>(y,x+1))*ISQ2;
+            imgLH.at<float>(y,x/2) = (imgTmp1.at<float>(y,x) - imgTmp1.at<float>(y,x+1))*ISQ2;
         }
     }
-    return *output;
+
+    for(int y=0; y < h/2; y++)
+    {
+        for(int x=0; x < w; x+=2)
+        {
+            imgHL.at<float>(y,x/2) = (imgTmp2.at<float>(y,x) + imgTmp2.at<float>(y,x+1))*ISQ2;
+            imgHH.at<float>(y,x/2) = (imgTmp2.at<float>(y,x) - imgTmp2.at<float>(y,x+1))*ISQ2;
+        }
+    }
+
+    Mat imgDst(imgSrc.size(), imgSrc.type());
+    // Копируем четверти на свои места
+    imgLL.copyTo(imgDst(Rect(0,     0,     w/2, h/2)));
+    imgHL.copyTo(imgDst(Rect(w/2,   0,     w/2, h/2)));
+    imgLH.copyTo(imgDst(Rect(0,     h/2,   w/2, h/2)));
+    imgHH.copyTo(imgDst(Rect(w/2,   h/2,   w/2, h/2)));
+
+    return imgDst;
 }
 
-Mat  Steganography::DiscreteHaarWaveletInverseTransform(Mat image)
+Mat Steganography::idwtHaar(const Mat &imgSrc)
 {
-    int i, j;
-    Mat* output = new Mat(image.rows, image.cols, image.type());
-    for (i = 0; i < image.rows / 2; i++){
-        for (j = 0; j < image.cols; j++){
-             output->at<float>(2 * i + 1,j) = (image.at<float>(i,j) * (float)sqrt(2) + image.at<float>(i + image.rows / 2,j) * (float)sqrt(2)) / 2.0;
-             output->at<float>(2 * i,j) = abs(image.at<float>(i,j) * (float)sqrt(2) - image.at<float>(i + image.rows / 2,j) * (float)sqrt(2)) / 2.0;
+    int w = imgSrc.cols,
+        h = imgSrc.rows;
+
+    Mat imgLL(imgSrc, Rect(0,   0,   w/2, h/2)),
+        imgHL(imgSrc, Rect(w/2, 0,   w/2, h/2)),
+        imgLH(imgSrc, Rect(0,   h/2, w/2, h/2)),
+        imgHH(imgSrc, Rect(w/2, h/2, w/2, h/2)),
+        imgTmp1 = Mat::zeros(h/2, w, CV_32F),
+        imgTmp2 = Mat::zeros(h/2, w, CV_32F),
+        imgTmp3 = Mat::zeros(h/2, w, CV_32F),
+        imgTmp4 = Mat::zeros(h/2, w, CV_32F),
+        imgTmp  = Mat::zeros(h,   w, CV_32F);
+
+    for(int y=0; y < h/2; y++)
+    {
+        for(int x=0; x < w/2; x++)
+        {
+            imgTmp1.at<float>(y,x*2) = imgLL.at<float>(y,x);
+            imgTmp2.at<float>(y,x*2) = imgLH.at<float>(y,x);
+            imgTmp3.at<float>(y,x*2) = imgHL.at<float>(y,x);
+            imgTmp4.at<float>(y,x*2) = imgHH.at<float>(y,x);
         }
     }
 
-    output->copyTo(image);
+    for(int y=0; y < h/2; y++)
+    {
+        for(int x=0; x < w; x+=2)
+        {
+            float v1 = imgTmp1.at<float>(y,x),
+                  v2 = imgTmp2.at<float>(y,x);
+            imgTmp1.at<float>(y,x)   = (v1 + v2)*ISQ2;
+            imgTmp1.at<float>(y,x+1) = (v1 - v2)*ISQ2;
 
-    for (i = 0; i < image.rows; i++){
-        for (j = 0; j < image.cols / 2; j++){
-             output->at<float>(i,2 * j + 1) = (image.at<float>(i,j) * (float)sqrt(2) + image.at<float>(i,j + image.cols/ 2) * (float)sqrt(2)) / 2.0;
-             output->at<float>(i,2 * j)  = abs(image.at<float>(i,j) * (float)sqrt(2) - image.at<float>(i,j + image.cols/ 2) * (float)sqrt(2)) / 2.0;
+            float v3 = imgTmp3.at<float>(y,x),
+                  v4 = imgTmp4.at<float>(y,x);
+            imgTmp3.at<float>(y,x)   = (v3 + v4)*ISQ2;
+            imgTmp3.at<float>(y,x+1) = (v3 - v4)*ISQ2;
         }
     }
-    return *output;
+
+    Mat imgDst(imgSrc.size(), imgSrc.type());
+
+    for(int y=0; y < h/2; y++)
+    {
+        for(int x=0; x < w; x++)
+        {
+            imgDst.at<float>(y*2,x) = imgTmp1.at<float>(y,x);
+            imgTmp.at<float>(y*2,x) = imgTmp3.at<float>(y,x);
+        }
+    }
+
+    for(int y=0; y < h; y+=2)
+    {
+        for(int x=0; x < w; x++)
+        {
+            float v1 = imgDst.at<float>(y,x),
+                  v2 = imgTmp.at<float>(y,x);
+            imgDst.at<float>(y,x)   = (v1 + v2)*ISQ2;
+            imgDst.at<float>(y+1,x) = (v1 - v2)*ISQ2;
+        }
+    }
+    return imgDst;
 }
 
 Mat Steganography::Hide(Mat pure_image, vector<char> data, vector<int> indexes)
-{
-   Mat image(pure_image.rows, pure_image.cols, CV_32FC3);
-   if (pure_image.type() != CV_32FC3)
-   {
+{   
+   Mat  image(pure_image.rows, pure_image.cols, CV_32FC3),
+        imageBlue(image.rows, image.cols, CV_32FC1);
+
+   if(pure_image.type() == 21){
+       pure_image.copyTo(image);
+   }else{
        pure_image.convertTo(image,CV_32FC3, 1/255.0);
    }
-
-   Mat imageBlue(image.rows, image.cols, CV_32FC1);
 
    int from_to[] = {0,0};
    mixChannels(image, imageBlue, from_to, 1);
 
    Mat s, u, v,
-           haarOutput1Lvl = DiscreteHaarWaveletTransform(pure_image),
-           haarOutput2Lvl = DiscreteHaarWaveletTransform(Mat(haarOutput1Lvl, Rect(0,0,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2)));
+           haarOutput1Lvl = dwtHaar(imageBlue),
+           haarOutput2Lvl = dwtHaar(Mat(haarOutput1Lvl, Rect(0,0,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2))),
+           crop(haarOutput2Lvl, Rect(0, 0, haarOutput2Lvl.rows / 2, haarOutput2Lvl.cols / 2));
 
-   namedWindow( "haarOutputLvl", WINDOW_AUTOSIZE );
-   imshow( "haarOutputLvl", haarOutput2Lvl);
+   SVD::compute(crop, s, u, v, SVD::FULL_UV);
 
-   Mat blue(haarOutput2Lvl, Rect(0, 0, haarOutput2Lvl.rows / 2, haarOutput2Lvl.cols / 2));
+   int j = 0,
+       exp;
 
-   SVD::compute(Mat(blue, Rect(0, 0, blue.rows / 2, blue.cols / 2)), s, u, v, SVD::FULL_UV);
+   float x;
+   for (int i = 0; i < indexes.size(); i++) {
+       cout <<   s.at<float>(indexes.at(i), 0) << "\\ ";
 
-   namedWindow( "s", WINDOW_AUTOSIZE );
-   imshow( "s", s);
-
-   int j = 0;
-   for (int i : indexes) {
-       //s.at<Vec3f>(s.rows / 2, indexes[i]).val[0] = (s.at<Vec3f>(indexes[i], indexes[i]).val[0] & 0xFFFE) | ((ch >> (i % 8)) & 1);
-       //s.at<Vec3f>(s.rows / 2, indexes[i]).val[0] += alfa * ((ch >> (i % 8)) & 1);
-       cout <<   s.at<float>(i, 0) << "/";
-       if ((data.at(j / 8) >> (j % 8)) & 1)
-       {    //1
-           s.at<float>(i, 0) = (float)((char)(s.at<float>(i, 0) * 255.0) | 0x07) / 255.0;
+       x = frexp(s.at<float>(indexes.at(i), 0), &exp);
+       cout << x << "\\ " <<  exp << "| ";
+       if (x == 0){
+           continue;
        }
-       else
-       {    //0
-           //s.at<float>(i, 0) = (float)((char)(s.at<float>(i, 0) * 255.0) ^ 0x07) / 255.0;
+       if (!((data.at(j / 8) >> (j % 8)) & 1)){ // 0
+            x = int(x * STEG_W) / STEG_W;
+            x += 0.25345 / STEG_W;
+            cout << x << " . " <<  exp << "\\  ";
+            s.at<float>(indexes.at(i), 0) = ldexp(x, exp);
+       } else { // 1
+           x = int(x * STEG_W) / STEG_W;
+           //x += 0.5123 / STEG_W;
+           x += 0.75345 / STEG_W;
+           s.at<float>(indexes.at(i), 0) = ldexp(x, exp);
        }
-       cout <<  s.at<float>(i, 0) << " ";
+       cout <<  s.at<float>(indexes.at(i), 0) << endl;
        j++;
    }
    cout <<  endl;
 
-   namedWindow( "s1", WINDOW_AUTOSIZE );
-   imshow( "s1", s);
+   crop = u * Mat::diag(s) * v;
 
-   s = u * Mat::diag(s) * v;
+   crop.copyTo(haarOutput2Lvl(Rect(0, 0, haarOutput2Lvl.rows / 2, haarOutput2Lvl.cols / 2)));
 
-   s.copyTo(blue(Rect(0, 0, blue.rows / 2, blue.cols / 2)));
-   mixChannels(blue, haarOutput2Lvl, from_to, 1);
-
-   namedWindow( "haarOutput2Lvl", WINDOW_AUTOSIZE );
-   imshow( "haarOutput2Lvl", haarOutput2Lvl);
-
-   haarOutput2Lvl = DiscreteHaarWaveletInverseTransform(haarOutput2Lvl);
+   haarOutput2Lvl = idwtHaar(haarOutput2Lvl);
 
    haarOutput2Lvl.copyTo(haarOutput1Lvl(Rect(0,0,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2)));
-   haarOutput1Lvl = DiscreteHaarWaveletInverseTransform(haarOutput1Lvl);
+   imageBlue = idwtHaar(haarOutput1Lvl);
 
-   return haarOutput1Lvl;
+   mixChannels(imageBlue, image, from_to, 1);
+
+   return image;
 }
 
 vector<char> Steganography::Find(Mat full_image, vector<int> indexes)
 {
+    Mat image(full_image.rows, full_image.cols, CV_32FC3),
+        imageBlue(image.rows, image.cols, CV_32FC1);
 
-    Mat image;
-    if (image.type() == CV_32FC3)
-    {
+    if(full_image.type() == 21){
         full_image.copyTo(image);
+    }else{
+        full_image.convertTo(image,CV_32FC3, 1/255.0);
     }
-    else
-    {
-        image = Mat(full_image.rows, full_image.cols, CV_32FC3);
-        for (int i = 0; i < full_image.rows; i++){
-            for (int j = 0; j < full_image.cols; j++){
-                for (int k = 0; k < 3; k++){
-                    image.at<Vec3f>(i,j).val[k] = (float)(full_image.at<Vec3b>(i,j).val[k] / 255.0);
-               }
-            }
-        }
-    }
-
-    vector<char>* data = new vector<char>(indexes.capacity() / 8, 0);
-
-    Mat s,
-            haarOutput1Lvl = DiscreteHaarWaveletTransform(image),
-            haarOutput2Lvl = DiscreteHaarWaveletTransform(Mat(haarOutput1Lvl, Rect(0,0,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2)));
-
-    Mat blue(haarOutput2Lvl.rows, haarOutput2Lvl.cols, CV_32FC1);
 
     int from_to[] = {0,0};
-    mixChannels(haarOutput2Lvl, blue, from_to, 1);
+    mixChannels(image, imageBlue, from_to, 1);
 
-    SVD::compute(Mat(blue, Rect(0, 0, blue.rows / 2, blue.cols / 2)), s, SVD::NO_UV);
+    Mat     s,
+            haarOutput1Lvl = dwtHaar(imageBlue),
+            haarOutput2Lvl = dwtHaar(Mat(haarOutput1Lvl, Rect(0,0,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2))),
+            crop(haarOutput2Lvl, Rect(0, 0, haarOutput2Lvl.rows / 2, haarOutput2Lvl.cols / 2));
 
-    int k, j = 0;
-    char ch, count;
-    for (int i : indexes) {
-        //data->at(j) = ((data->at(j) >> (j % 8)) & 0xFE) | (s.at<Vec3f>(s.rows / 2, i).val[0] & 1);
-        cout <<   s.at<float>(i, 0) << " ";
-        ch = (char)(s.at<float>(i, 0) * 255.0);
+    SVD::compute(crop, s, SVD::NO_UV);
 
-        count = 0;
-        for (k = 0; k < 4; k++)
-        {
-            count += (ch >> k) & 1;
+    vector<char> data(indexes.capacity() / 8,0);
+    int j = 0,
+        exp;
+    float x;
+    vector<float>::iterator it;
+
+    for (int i = 0; i < indexes.size(); i++){
+        cout <<  s.at<float>(indexes.at(i), 0);
+        x = frexp(s.at<float>(indexes.at(i), 0), &exp);
+        if(x == 0){
+            continue;
         }
-
-        if(count > 1)
-        {//1
-            data->at(j / 8) |=  1 << (j % 8);
+        cout << "/ " <<  x;
+        x = int((x * STEG_W - (int)(x * STEG_W)) * 100.0);
+        cout << "/ " <<  x << endl;
+        //it = find(pairs.begin(), pairs.end(), x);
+        //if (it == pairs.end()){
+        if (x < -50.0 | x > 50.0){
+            data.at(j / 8) = data.at(j / 8) | (1 << (j % 8));
         }
-        //0
-            //data->at(j / 8) |= ((data->at(j / 8) >> (j % 8)) & 0xFF) << (j % 8);
-
-
         j++;
     }
-
-    return *data;
+    return data;
 }

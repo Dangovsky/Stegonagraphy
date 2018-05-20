@@ -18,6 +18,10 @@ class Steganography
     int a = 0;
     int b = 0;
     int c = 0;
+    const float SQ2  = 1.4142135623730950;
+    const float ISQ2 = 0.7071067811865475;
+    const float STEG_W = 100000;
+
 public:
     Steganography();
     
@@ -26,6 +30,10 @@ public:
 
     Mat DiscreteHaarWaveletTransform(Mat image);
     Mat DiscreteHaarWaveletInverseTransform(Mat image);
+
+
+    Mat dwtHaar(const Mat &imgSrc);
+    Mat idwtHaar(const Mat &imgSrc);
 
     Mat Hide(Mat image, vector<char> data, vector<int> indexes);
     vector<char> Find(Mat image, vector<int> indexes);
