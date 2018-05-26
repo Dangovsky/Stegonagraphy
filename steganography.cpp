@@ -172,7 +172,7 @@ Mat Steganography::Hide(Mat pure_image, vector<char> data, vector<int> indexes)
 
    Mat s, u, v,
            haarOutput1Lvl = dwtHaar(imageBlue),
-           haarOutput2Lvl = dwtHaar(Mat(haarOutput1Lvl, Rect(0,0,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2))),
+           haarOutput2Lvl = dwtHaar(Mat(haarOutput1Lvl, Rect(haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2))),
            crop(haarOutput2Lvl, Rect(0, 0, haarOutput2Lvl.rows / 2, haarOutput2Lvl.cols / 2));
 
    SVD::compute(crop, s, u, v, SVD::FULL_UV);
@@ -185,19 +185,21 @@ Mat Steganography::Hide(Mat pure_image, vector<char> data, vector<int> indexes)
        cout <<   s.at<float>(indexes.at(i), 0) << "\\ ";
 
        x = frexp(s.at<float>(indexes.at(i), 0), &exp);
-       cout << x << "\\ " <<  exp << "| ";
-       if (x == 0){
-           continue;
-       }
+       cout << x << "| ";
+
+       x = int(x * STEG_W) / STEG_W;
+
        if (!((data.at(j / 8) >> (j % 8)) & 1)){ // 0
-            x = int(x * STEG_W) / STEG_W;
-            x += 0.25345 / STEG_W;
-            cout << x << " . " <<  exp << "\\  ";
+            x < 0 ?
+                   x -= 0.25345 / STEG_W :
+                   x += 0.25345 / STEG_W;
+            cout << x << " . " <<  exp << "\\ 0 \\ ";
             s.at<float>(indexes.at(i), 0) = ldexp(x, exp);
        } else { // 1
-           x = int(x * STEG_W) / STEG_W;
-           //x += 0.5123 / STEG_W;
-           x += 0.75345 / STEG_W;
+           x < 0 ?
+                  x -= 0.75345 / STEG_W :
+                  x += 0.75345 / STEG_W;
+           cout << x << " . " <<  exp << "\\ 1 \\ ";
            s.at<float>(indexes.at(i), 0) = ldexp(x, exp);
        }
        cout <<  s.at<float>(indexes.at(i), 0) << endl;
@@ -211,7 +213,7 @@ Mat Steganography::Hide(Mat pure_image, vector<char> data, vector<int> indexes)
 
    haarOutput2Lvl = idwtHaar(haarOutput2Lvl);
 
-   haarOutput2Lvl.copyTo(haarOutput1Lvl(Rect(0,0,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2)));
+   haarOutput2Lvl.copyTo(haarOutput1Lvl(Rect(haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2, haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2)));
    imageBlue = idwtHaar(haarOutput1Lvl);
 
    mixChannels(imageBlue, image, from_to, 1);
@@ -249,18 +251,91 @@ vector<char> Steganography::Find(Mat full_image, vector<int> indexes)
     for (int i = 0; i < indexes.size(); i++){
         cout <<  s.at<float>(indexes.at(i), 0);
         x = frexp(s.at<float>(indexes.at(i), 0), &exp);
-        if(x == 0){
-            continue;
-        }
+
         cout << "/ " <<  x;
         x = int((x * STEG_W - (int)(x * STEG_W)) * 100.0);
-        cout << "/ " <<  x << endl;
-        //it = find(pairs.begin(), pairs.end(), x);
-        //if (it == pairs.end()){
+        cout << "/ " <<  x << " . " << exp << endl;
+
         if (x < -50.0 | x > 50.0){
             data.at(j / 8) = data.at(j / 8) | (1 << (j % 8));
         }
         j++;
     }
+    return data;
+}
+
+Mat Steganography::HideIm(Mat pure_image, Mat data)
+{
+   Mat  image(pure_image.rows, pure_image.cols, CV_32FC3),
+        imageBlue(image.rows, image.cols, CV_32FC1);
+
+   if(pure_image.type() == 21){
+       pure_image.copyTo(image);
+   }else{
+       pure_image.convertTo(image,CV_32FC3, 1/255.0);
+   }
+
+   int from_to[] = {0,0};
+   mixChannels(image, imageBlue, from_to, 1);
+
+   Mat s, u, v, sd, ud, vd,
+           haarOutput1Lvl = dwtHaar(imageBlue),
+           haarOutput2Lvl = dwtHaar(Mat(haarOutput1Lvl, Rect(haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2))),
+           crop(haarOutput2Lvl, Rect(0, 0, haarOutput2Lvl.rows / 2, haarOutput2Lvl.cols / 2));
+
+   SVD::compute(crop, s, u, v, SVD::FULL_UV);
+   SVD::compute(data, sd, ud, vd, SVD::FULL_UV);
+
+   ss = s; su = u; sv = v;
+
+   addWeighted(s, 1, sd, STEG_W, 0 ,s , -1);
+   addWeighted(u, 1, ud, STEG_W, 0 ,u , -1);
+   addWeighted(v, 1, vd, STEG_W, 0 ,v , -1);
+
+   crop = u * Mat::diag(s) * v;
+
+   crop.copyTo(haarOutput2Lvl(Rect(0, 0, haarOutput2Lvl.rows / 2, haarOutput2Lvl.cols / 2)));
+
+   haarOutput2Lvl = idwtHaar(haarOutput2Lvl);
+
+   haarOutput2Lvl.copyTo(haarOutput1Lvl(Rect(haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2, haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2)));
+   imageBlue = idwtHaar(haarOutput1Lvl);
+
+   mixChannels(imageBlue, image, from_to, 1);
+
+   return image;
+}
+
+Mat Steganography::FindIm(Mat full_image, int w, int h)
+{
+    Mat     data(h, w, CV_32FC1),
+            ds(h, 1, CV_32FC1),
+            dv(h, h, CV_32FC1),
+            du(w, w, CV_32FC1),
+            image(full_image.rows, full_image.cols, CV_32FC3),
+            imageBlue(image.rows, image.cols, CV_32FC1);
+
+    if(full_image.type() == 21){
+        full_image.copyTo(image);
+    }else{
+        full_image.convertTo(image,CV_32FC3, 1/255.0);
+    }
+
+    int from_to[] = {0,0};
+    mixChannels(image, imageBlue, from_to, 1);
+
+    Mat     s, u, v,
+            haarOutput1Lvl = dwtHaar(imageBlue),
+            haarOutput2Lvl = dwtHaar(Mat(haarOutput1Lvl, Rect(0,0,haarOutput1Lvl.cols / 2, haarOutput1Lvl.rows / 2))),
+            crop(haarOutput2Lvl, Rect(0, 0, haarOutput2Lvl.rows / 2, haarOutput2Lvl.cols / 2));
+
+    SVD::compute(crop, s, u, v, SVD::FULL_UV);
+
+    addWeighted(s, 1, ss, -1, 0, ds, -1);
+    addWeighted(u, 1, su, -1, 0, du, -1);
+    addWeighted(v, 1, sv, -1, 0, dv, -1);
+
+    data = du * Mat::diag(ds) * dv;
+
     return data;
 }

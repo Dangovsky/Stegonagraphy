@@ -19,8 +19,10 @@ class Steganography
     int b = 0;
     int c = 0;
     const float SQ2  = 1.4142135623730950;
-    const float ISQ2 = 0.7071067811865475;
-    const float STEG_W = 100000;
+    const float ISQ2 = 0.7071067811865475;        
+    const float STEG_W = 0.1;
+
+    Mat ss, sv, su;
 
 public:
     Steganography();
@@ -37,6 +39,8 @@ public:
 
     Mat Hide(Mat image, vector<char> data, vector<int> indexes);
     vector<char> Find(Mat image, vector<int> indexes);
+    Mat HideIm(Mat image, Mat data);
+    Mat FindIm(Mat full_image, int w, int h);
 };
 
 #endif // STEGANOGRAPHY_H
