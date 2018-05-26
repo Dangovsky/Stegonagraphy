@@ -20,7 +20,7 @@ class Steganography
     int c = 0;
     const float SQ2  = 1.4142135623730950;
     const float ISQ2 = 0.7071067811865475;        
-    const float STEG_W = 0.1;
+    const float STEG_W = 1;
 
     Mat ss, sv, su;
 

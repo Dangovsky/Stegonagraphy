@@ -224,7 +224,10 @@ void FloatTest(){
 void StegImTest(){
     Steganography stg;
     Mat     pure_image = imread("test.tif"),
-            data = imread("data.png", IMREAD_GRAYSCALE);
+            data = imread("data.jpg", IMREAD_GRAYSCALE);
+
+    namedWindow( "datac", WINDOW_AUTOSIZE );
+    imshow( "datac", data);
 
     data.convertTo(data, CV_32FC1, 1/255.0);
 
@@ -234,6 +237,8 @@ void StegImTest(){
 
     stg.FindIm(full_image, out_data.rows, out_data.cols);
     out_data.convertTo(converted, CV_8UC1, 255.0);
+
+    cout << out_data;
 
     namedWindow( "pure_image", WINDOW_AUTOSIZE );
     imshow( "pure_image", pure_image);
@@ -256,7 +261,7 @@ void StegImTest(){
 
 int main(int argc, char *argv[])
 {
-    StegImTest();
+    StegTest();
     return 0;
 }
 
