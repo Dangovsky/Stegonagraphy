@@ -288,9 +288,9 @@ Mat Steganography::HideIm(Mat pure_image, Mat data)
 
    s.copyTo(ss) ; u.copyTo(su); v.copyTo(sv);
 
-   addWeighted(s, 1, sd, STEG_W, 0 ,s , -1);
-   addWeighted(u, 1, ud, STEG_W, 0 ,u , -1);
-   addWeighted(v, 1, vd, STEG_W, 0 ,v , -1);
+   addWeighted(s, 1 - STEG_W, sd, STEG_W, 0 ,s , -1);
+   addWeighted(u, 1 - STEG_W, ud, STEG_W, 0 ,u , -1);
+   addWeighted(v, 1 - STEG_W, vd, STEG_W, 0 ,v , -1);
 
    crop = u * Mat::diag(s) * v;
 
@@ -331,11 +331,16 @@ Mat Steganography::FindIm(Mat full_image, int w, int h)
 
     SVD::compute(crop, s, u, v, SVD::FULL_UV);
 
-    subtract(s, ss, ds);
-    subtract(u, su, du);
-    subtract(v, sv, dv);
+    //subtract(s, ss, ds);
+    //subtract(u, su, du);
+    //subtract(v, sv, dv);
 
-    data = du * Mat::diag(ds) * dv;
+    addWeighted(s, 1, ss, -1 + STEG_W, 0 ,ds , -1);
+    addWeighted(u, 1, su, -1 + STEG_W, 0 ,du , -1);
+    addWeighted(v, 1, sv, -1 + STEG_W, 0 ,dv , -1);
+
+
+    data = du * Mat::diag(ds) * dv / STEG_W;
 
     return data;
 }

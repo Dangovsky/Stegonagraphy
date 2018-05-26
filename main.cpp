@@ -233,12 +233,15 @@ void StegImTest(){
 
     Mat     full_image = stg.HideIm(pure_image, data),
             out_data(data.rows, data.cols, data.type()),
-            converted(data.rows, data.cols, CV_8UC1);
+            converted_data(data.rows, data.cols, CV_8UC1),
+            converted_full(full_image.rows, full_image.cols, CV_8UC1);
 
-    stg.FindIm(full_image, out_data.rows, out_data.cols);
-    out_data.convertTo(converted, CV_8UC1, 255.0);
+    full_image.convertTo(converted_full, CV_8UC1, 255.0);
 
+    //out_data = stg.FindIm(full_image, out_data.rows, out_data.cols);
+    out_data = stg.FindIm(converted_full, out_data.rows, out_data.cols);
     cout << out_data;
+    out_data.convertTo(converted_data, CV_8UC1, 255.0);
 
     namedWindow( "pure_image", WINDOW_AUTOSIZE );
     imshow( "pure_image", pure_image);
@@ -252,8 +255,8 @@ void StegImTest(){
     namedWindow( "out_data", WINDOW_AUTOSIZE );
     imshow( "out_data", out_data);
 
-    namedWindow( "converted", WINDOW_AUTOSIZE );
-    imshow( "converted", converted);
+    namedWindow( "converted_data", WINDOW_AUTOSIZE );
+    imshow( "converted_data", converted_data);
 
     waitKey(0);
     waitKey(0);
@@ -261,7 +264,7 @@ void StegImTest(){
 
 int main(int argc, char *argv[])
 {
-    StegTest();
+    StegImTest();
     return 0;
 }
 
