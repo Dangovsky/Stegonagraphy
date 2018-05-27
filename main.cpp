@@ -224,7 +224,7 @@ void FloatTest(){
 void StegImTest(){
     Steganography stg;
     Mat     pure_image = imread("test.tif"),
-            data = imread("data.jpg", IMREAD_GRAYSCALE);
+            data = imread("qr.png", IMREAD_GRAYSCALE);
 
     namedWindow( "datac", WINDOW_AUTOSIZE );
     imshow( "datac", data);
